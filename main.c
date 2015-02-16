@@ -13,13 +13,15 @@
 #include <stdio.h>
 
 
+#define FILENAMEHEAD            "Record_step-"
+#define NUMBER_MEMBER           3
 /* 
  * ===  FUNCTION  ======================================================================
  *         Name:  printdir
  *  Description:  
  * =====================================================================================
  */
-void printdir (char *dir, int depth)
+void printdir(char *dir, int depth)
 {
     DIR *dp;
     struct dirent *entry;
@@ -32,23 +34,69 @@ void printdir (char *dir, int depth)
     }
     chdir(dir);
     while ((entry = readdir(dp)) != NULL) {
-        stat(entry->d_name, &statbuf);
+        lstat(entry->d_name, &statbuf);
         if (S_ISDIR(statbuf.st_mode)) {
             /* Found a directory, but ignore . and .. */
             if (strcmp(".", entry->d_name) == 0 ||
                     strcmp("..", entry->d_name) == 0)
                 continue;
-            printf("directory: %*s%s/\n", depth, " ", entry->d_name);
+            //printf("directory: %*s%s/\n", depth, " ", entry->d_name);
             /* Recurse at a new indent level */
             printdir(entry->d_name, depth+4);
+            chdir("..");
         } else {
-            printf("file: %*s%s\n", depth, " ", entry->d_name);
+            //printf("file: %d%s%s\n", depth, " - ", entry->d_name);
+            //printf("%s/%s\n", dir, entry->d_name);
+
+            /* Output the matching file name */
+            if (strncmp(FILENAMEHEAD, entry->d_name, sizeof(FILENAMEHEAD)/sizeof (char)-1) == 0) {
+                printf("%s/%s\n", dir, entry->d_name);
+            }
         }
     }
-    chdir("..");
     closedir(dp);
 }       /* -----  end of function printdir  ----- */
 
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  get_file_name
+ *  Description:  
+ * =====================================================================================
+ */
+char file_name_list[200][100];
+int file_count = 0;
+void get_file_name(char *dir, int depth)
+{
+    DIR *dp;
+    struct dirent *entry;
+    struct stat statbuf;
+
+
+    if ((dp = opendir(dir)) == NULL) {
+        fprintf(stderr, "cannot open directory: %s\n", dir);
+        return;
+    }
+    chdir(dir);
+    while ((entry = readdir(dp)) != NULL) {
+        lstat(entry->d_name, &statbuf);
+        if (S_ISDIR(statbuf.st_mode)) {
+            /* Found a directory, but ignore . and .. */
+            if (strcmp(".", entry->d_name) == 0 ||
+                    strcmp("..", entry->d_name) == 0)
+                continue;
+            /* Recurse at a new indent level */
+            get_file_name(entry->d_name, depth+4);
+            chdir("..");
+        } else {
+            /* Output the matching file name */
+            if (strncmp(FILENAMEHEAD, entry->d_name, sizeof(FILENAMEHEAD)/sizeof (char)-1) == 0) {
+                sprintf(file_name_list[file_count], "%s/%s", dir, entry->d_name);
+                file_count++;
+            }
+        }
+    }
+    closedir(dp);
+}		/* -----  end of function get_file_name  ----- */
 
 /* 
  * ===  FUNCTION  ======================================================================
@@ -56,7 +104,7 @@ void printdir (char *dir, int depth)
  *  Description:  
  * =====================================================================================
  */
-int extract_file (char *filename, int len)
+int extract_file(char *filename, int len)
 {
     int i;
     int nlen;
@@ -65,7 +113,6 @@ int extract_file (char *filename, int len)
 
 
     filp = open(filename, O_RDONLY);
-
     nlen = read(filp, buffer, len*2);
     if (nlen != len*2) {
         printf("Error len %d: the file %s only read %d!\n", len, filename, nlen/2);
@@ -74,19 +121,65 @@ int extract_file (char *filename, int len)
     printf("\n");
     for (i=0; i<nlen/2; i++) {
         printf("%d", buffer[i]);
-        if (i%3 == 2) {
+        if (i%NUMBER_MEMBER == 2) {
             printf("\n");
         } else {
             printf(",");
         }
     }
     printf("\n");
-
     close(filp);
-
 
     return nlen;
 }       /* -----  end of function extract_file  ----- */
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  extract_all
+ *  Description:  
+ * =====================================================================================
+ */
+int extract_all(char *filename)
+{
+    short buffer[NUMBER_MEMBER];
+    int filp = 0;
+    int i, len, count;
+
+
+    filp = open(filename, O_RDONLY);
+    len = NUMBER_MEMBER*2;
+    for (count=0; 1; count+=NUMBER_MEMBER) {
+        if (read(filp, buffer, len) != len) {
+            break;
+        }
+        for (i=0; i<NUMBER_MEMBER; i++) {
+            printf("%d,", buffer[i]);
+        }
+        printf("\n");
+    }
+    close(filp);
+
+    return count;
+}		/* -----  end of function extract_all  ----- */
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  file_compar
+ *  Description:  
+ * =====================================================================================
+ */
+int file_compar(const void *arry1, const void *arry2)
+{
+    int num1 = atoi(rindex(arry1, '-')+1); //Get file number
+    int num2 = atoi(rindex(arry2, '-')+1);
+
+    if (num1 > num2)
+        return 1;
+    else if (num1 < num2)
+        return -1;
+    else
+        return 0;
+}		/* -----  end of function file_compar  ----- */
 
 /* 
  * ===  FUNCTION  ======================================================================
@@ -96,18 +189,15 @@ int extract_file (char *filename, int len)
  */
 int main(int argc, char *argv[])
 {
-    int len;
-
-
-    /* Input the data long */
-    if (argc > 1) {
-        len = atoi(argv[1]);
-    } else {
-        len = 9;
+    int i;
+    //printdir(".", 0);
+    get_file_name(".", 0);
+    qsort(file_name_list, file_count, 100, file_compar);
+    for (i=0; i<file_count; i++){
+        //printf("%s\n", file_name_list[i]);
+        extract_all(file_name_list[i]);
     }
-
-    printdir(".", 0);
-    extract_file("./file.txt", len);
+    //extract_all("./file.txt");
 
     return EXIT_SUCCESS;
 }               /* ----------  end of function main  ---------- */
