@@ -17,7 +17,7 @@
 #define NUMBER_MEMBER           3
 #define FILE_NUMBER_MAX         200
 
-char *file_name_list[FILE_NUMBER_MAX];
+char **file_name_list;
 int file_count = 0;
 
 /* 
@@ -206,15 +206,17 @@ int main(int argc, char *argv[])
 {
     int i;
 
+    file_name_list = (char **)malloc(FILE_NUMBER_MAX*sizeof (char *));
 
     //printdir(".", 0);
     get_file_name(".");
     qsort(file_name_list, file_count, sizeof (char *), file_compar);
     for (i=0; i<file_count; i++){
-        printf("%s\n", file_name_list[i]);
-        //extract_all(file_name_list[i]);
+        //printf("%s\n", file_name_list[i]);
+        extract_all(file_name_list[i]);
         free(file_name_list[i]);
     }
+    free(file_name_list);
 
     return EXIT_SUCCESS;
 }               /* ----------  end of function main  ---------- */
