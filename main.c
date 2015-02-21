@@ -15,6 +15,11 @@
 
 #define FILENAMEHEAD            "Record_step-"
 #define NUMBER_MEMBER           3
+#define FILE_NUMBER_MAX         200
+
+char *file_name_list[FILE_NUMBER_MAX];
+int file_count = 0;
+
 /* 
  * ===  FUNCTION  ======================================================================
  *         Name:  printdir
@@ -63,9 +68,7 @@ void printdir(char *dir, int depth)
  *  Description:  
  * =====================================================================================
  */
-char file_name_list[200][100];
-int file_count = 0;
-void get_file_name(char *dir, int depth)
+void get_file_name(char *dir)
 {
     DIR *dp;
     struct dirent *entry;
@@ -85,11 +88,13 @@ void get_file_name(char *dir, int depth)
                     strcmp("..", entry->d_name) == 0)
                 continue;
             /* Recurse at a new indent level */
-            get_file_name(entry->d_name, depth+4);
+            get_file_name(entry->d_name);
             chdir("..");
         } else {
             /* Output the matching file name */
             if (strncmp(FILENAMEHEAD, entry->d_name, sizeof(FILENAMEHEAD)/sizeof (char)-1) == 0) {
+                file_name_list[file_count] = (char *)malloc((strlen(dir)+strlen(entry->d_name)+2)*sizeof (char)); /* The 2 byte is the '\0' and '\' in string */
+                //file_name_list[file_count] = (char *)malloc(FILE_NAME_MAX * sizeof (char));
                 sprintf(file_name_list[file_count], "%s/%s", dir, entry->d_name);
                 file_count++;
             }
@@ -141,12 +146,15 @@ int extract_file(char *filename, int len)
  */
 int extract_all(char *filename)
 {
-    short buffer[NUMBER_MEMBER];
+    //short buffer[NUMBER_MEMBER];
+    short *buffer;
     int filp = 0;
     int i, len, count;
 
 
+    buffer = (short *)malloc(NUMBER_MEMBER*sizeof (short));
     filp = open(filename, O_RDONLY);
+
     len = NUMBER_MEMBER*2;
     for (count=0; 1; count+=NUMBER_MEMBER) {
         if (read(filp, buffer, len) != len) {
@@ -157,7 +165,9 @@ int extract_all(char *filename)
         }
         printf("\n");
     }
+
     close(filp);
+    free(buffer);
 
     return count;
 }		/* -----  end of function extract_all  ----- */
@@ -170,8 +180,13 @@ int extract_all(char *filename)
  */
 int file_compar(const void *arry1, const void *arry2)
 {
-    int num1 = atoi(rindex(arry1, '-')+1); //Get file number
-    int num2 = atoi(rindex(arry2, '-')+1);
+    int num1, num2;
+    char *const*str1 = arry1;
+    char *const*str2 = arry2;
+
+
+    num1 = atoi(rindex(*str1, '-')+1); //Get file number
+    num2 = atoi(rindex(*str2, '-')+1);
 
     if (num1 > num2)
         return 1;
@@ -190,14 +205,16 @@ int file_compar(const void *arry1, const void *arry2)
 int main(int argc, char *argv[])
 {
     int i;
+
+
     //printdir(".", 0);
-    get_file_name(".", 0);
-    qsort(file_name_list, file_count, 100, file_compar);
+    get_file_name(".");
+    qsort(file_name_list, file_count, sizeof (char *), file_compar);
     for (i=0; i<file_count; i++){
-        //printf("%s\n", file_name_list[i]);
-        extract_all(file_name_list[i]);
+        printf("%s\n", file_name_list[i]);
+        //extract_all(file_name_list[i]);
+        free(file_name_list[i]);
     }
-    //extract_all("./file.txt");
 
     return EXIT_SUCCESS;
 }               /* ----------  end of function main  ---------- */
